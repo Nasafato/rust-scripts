@@ -55,6 +55,11 @@ For any given line, we need:
 - This means all your ancestors are last children, and we can add this to each entry, I think
     - Something like `ancestors_are_last_children` - if true, then all your ancestors are last children
       so you don't print the '|' at your ancestor indices
+
+[] Better error-handlng when the tree encounters non-Unicode filenames
+[] List files in current directory when there are no arguments
+[] Take in a list of directory arguments and prints out the tree one-by-one
+[] Return total number of files and/or directories 
 */
 
 enum Charset {
@@ -88,7 +93,11 @@ impl Line {
     /// Displays the tree using the Ascii charset
     pub fn display(&self) {
         let indent = create_indentation(&self, 4);
-        println!("{}{:?}", indent, &self.path.file_name().unwrap());
+        println!(
+            "{}{}",
+            indent,
+            &self.path.file_name().unwrap().to_str().unwrap()
+        );
     }
 
     /// Lets you specify a charset to display the tree with
