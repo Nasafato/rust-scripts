@@ -55,57 +55,68 @@ For any given line, we need:
 - This means all your ancestors are last children, and we can add this to each entry, I think
     - Something like `ancestors_are_last_children` - if true, then all your ancestors are last children
       so you don't print the '|' at your ancestor indices
-
 */
 
-fn tree(path: PathBuf) -> Result<(), io::Error> {
-    let mut stack = Vec::new();
-    stack.push((0, true, true, path));
-    while stack.len() > 0 {
-        let (deepness, is_last_child, ancestors_are_last_children, path) = stack.pop().unwrap();
-        let indent = create_indentation(deepness, is_last_child, ancestors_are_last_children, 4);
-        println!("{}{:?}", indent, path.file_name().unwrap());
-        if !path.is_dir() {
-            continue;
-        }
-        let mut paths: Vec<_> = fs::read_dir(&path)?.map(|r| r.unwrap()).collect();
-        paths.sort_by_key(|dir| dir.path());
-
-        for (i, entry) in paths.into_iter().enumerate() {
-            let entry_path = entry.path();
-            let is_last_child_to_be_printed = i == 0;
-            let ancestors_are_last_children_for_child =
-                ancestors_are_last_children && is_last_child;
-            stack.push((
-                deepness + 1,
-                is_last_child_to_be_printed,
-                ancestors_are_last_children_for_child,
-                entry_path,
-            ));
-        }
-    }
-    Ok(())
+enum Charset {
+    Ascii,
+    Fancy,
 }
 
-fn create_indentation(
-    deepness: usize,
+#[derive(Clone, Debug)]
+struct Line {
+    depth: usize,
     is_last_child: bool,
     ancestors_are_last_children: bool,
-    amount_per_step: usize,
-) -> String {
+    path: PathBuf,
+}
+
+impl Line {
+    pub fn new(
+        depth: usize,
+        is_last_child: bool,
+        ancestors_are_last_children: bool,
+        path: PathBuf,
+    ) -> Line {
+        Line {
+            depth: depth,
+            is_last_child: is_last_child,
+            ancestors_are_last_children: ancestors_are_last_children,
+            path: path,
+        }
+    }
+
+    /// Displays the tree using the Ascii charset
+    pub fn display(&self) {
+        let indent = create_indentation(&self, 4);
+        println!("{}{:?}", indent, &self.path.file_name().unwrap());
+    }
+
+    /// Lets you specify a charset to display the tree with
+    pub fn display_with_charset(&self, charset: Charset) {
+        let indent = create_indentation(&self, 4);
+        println!("{}{:?}", indent, &self.path.file_name().unwrap());
+    }
+}
+
+fn create_indentation(line: &Line, amount_per_step: usize) -> String {
     let mut indent = "".to_string();
-    if deepness == 0 {
+    if line.depth == 0 {
         return indent;
     }
     indent.push_str(
-        create_ancestor_indent(deepness - 1, ancestors_are_last_children, amount_per_step).as_ref(),
+        create_ancestor_indent(
+            line.depth - 1,
+            line.ancestors_are_last_children,
+            amount_per_step,
+        )
+        .as_ref(),
     );
-    if is_last_child {
+    if line.is_last_child {
         indent.push_str("\\");
     } else {
         indent.push_str("+")
     }
-    while indent.len() < deepness * amount_per_step {
+    while indent.len() < line.depth * amount_per_step {
         indent.push_str("-");
     }
     indent
@@ -130,4 +141,27 @@ fn create_ancestor_indent(
         ancestor_indent.push_str(&step)
     }
     ancestor_indent
+}
+
+fn tree(path: PathBuf) -> Result<(), io::Error> {
+    let mut stack = Vec::new();
+    stack.push(Line::new(0, true, true, path));
+    while stack.len() > 0 {
+        let line = stack.pop().unwrap();
+        line.display();
+        if !line.path.is_dir() {
+            continue;
+        }
+        let mut paths: Vec<_> = fs::read_dir(&line.path)?.map(|r| r.unwrap()).collect();
+        paths.sort_by_key(|dir| dir.path());
+        for (i, entry) in paths.into_iter().enumerate() {
+            stack.push(Line::new(
+                line.depth + 1,
+                i == 0,
+                line.ancestors_are_last_children && line.is_last_child,
+                entry.path(),
+            ));
+        }
+    }
+    Ok(())
 }
