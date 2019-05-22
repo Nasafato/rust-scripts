@@ -1,6 +1,8 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+mod output;
+use crate::output::Output;
 
 #[derive(Debug)]
 pub struct Config {
@@ -20,6 +22,9 @@ pub fn parse_config(args: &[String]) -> Result<Config, &'static str> {
         } else {
             paths.push(PathBuf::from(arg));
         }
+    }
+    if paths.len() == 0 {
+        paths.push(PathBuf::from("."));
     }
     let config = Config { levels, paths };
     Ok(config)
@@ -43,23 +48,37 @@ fn parse_int(string: &str) -> Result<usize, &'static str> {
     Ok(sum)
 }
 
-pub fn run(config: Config) -> Result<(), io::Error> {
+pub fn run(config: Config) -> Result<Output, io::Error> {
     let mut stack = Vec::new();
+    let mut output = Output::new(config.paths.len());
     for path in config.paths {
         stack.push(Line::new(0, true, true, path));
     }
     while stack.len() > 0 {
-        let line = stack.pop().unwrap();
-        line.display();
+        let line = match stack.pop() {
+            Some(line) => line,
+            None => return Err(io::Error::new(io::ErrorKind::Other, "Pop failed")),
+        };
+        match line.display() {
+            Ok(()) => (),
+            Err(err) => return Err(err),
+        };
         if !line.path.is_dir() {
+            output.increment_files();
             continue;
         }
+        output.increment_directories();
         if let Some(levels) = config.levels {
             if levels == line.depth {
                 continue;
             }
         }
-        let mut paths: Vec<_> = fs::read_dir(&line.path)?.map(|r| r.unwrap()).collect();
+        // https://doc.rust-lang.org/rust-by-example/error/iter_result.html#fail-the-entire-operation-with-collect
+        let paths: Result<Vec<_>, io::Error> = fs::read_dir(&line.path)?.collect();
+        let mut paths = match paths {
+            Ok(paths) => paths,
+            Err(err) => return Err(err),
+        };
         paths.sort_by_key(|dir| dir.path());
         for (i, entry) in paths.into_iter().enumerate() {
             stack.push(Line::new(
@@ -70,9 +89,8 @@ pub fn run(config: Config) -> Result<(), io::Error> {
             ));
         }
     }
-    Ok(())
+    Ok(output)
 }
-
 
 #[derive(Clone, Debug)]
 pub struct Line {
@@ -98,13 +116,18 @@ impl Line {
     }
 
     /// Displays the tree using the Ascii charset
-    pub fn display(&self) {
+    pub fn display(&self) -> Result<(), io::Error> {
         let indent = create_indentation(&self, 4);
-        println!(
-            "{}{}",
-            indent,
-            &self.path.file_name().unwrap().to_str().unwrap()
-        );
+        let filename = match self.path.file_name() {
+            Some(filename) => filename,
+            None => self.path.as_os_str(),
+        };
+        let filename = match filename.to_str() {
+            Some(filename) => filename,
+            None => "non-utf-8",
+        };
+        println!("{}{}", indent, filename);
+        Ok(())
     }
 
     /// Lets you specify a charset to display the tree with
@@ -114,12 +137,10 @@ impl Line {
     }
 }
 
-
 pub enum Charset {
     Ascii,
     Fancy,
 }
-
 
 fn create_indentation(line: &Line, amount_per_step: usize) -> String {
     let mut indent = "".to_string();

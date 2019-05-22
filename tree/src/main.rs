@@ -2,14 +2,6 @@ use std::env;
 use tree;
 
 fn main() {
-    let current_dir = env::current_dir().unwrap();
-    println!("Current dir: {:?}", current_dir);
-
-    // let mut raw_path_string = String::new();
-    // io::stdin()
-    //     .read_line(&mut raw_path_string)
-    //     .expect("Failed to read line");
-    // let raw_path_string = "test";
     let args: Vec<String> = env::args().skip(1).collect();
     let config = match tree::parse_config(&args) {
         Ok(config) => config,
@@ -17,7 +9,7 @@ fn main() {
     };
 
     match tree::run(config) {
-        Ok(()) => println!("Ok"),
+        Ok(output) => output.print_count(),
         Err(err) => println!("Err: {}", err),
     }
 }
