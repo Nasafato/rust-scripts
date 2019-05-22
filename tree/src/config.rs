@@ -1,3 +1,4 @@
+use crate::display::Charset;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -10,6 +11,7 @@ impl Args {
   pub fn from_args(arguments: &[String]) -> Result<Self, &'static str> {
     let mut args = Args::new();
     let mut is_parsing_level = false;
+    let mut is_parsing_charset = false;
     for arg in arguments {
       if arg == "-L" {
         is_parsing_level = true;
@@ -20,6 +22,11 @@ impl Args {
         args.config.only_show_directories = true;
       } else if arg == "-a" {
         args.config.print_hidden = true;
+      } else if arg == "--charset" {
+        is_parsing_charset = true;
+      } else if is_parsing_charset {
+        args.config.charset = parse_charset(arg);
+        is_parsing_charset = false;
       } else {
         args.paths.push(PathBuf::from(arg));
       }
@@ -38,11 +45,20 @@ impl Args {
   }
 }
 
+fn parse_charset(string: &str) -> Charset {
+  match string {
+    "fancy" => Charset::Fancy,
+    "ascii" => Charset::Ascii,
+    _ => Charset::Fancy,
+  }
+}
+
 #[derive(Debug)]
 pub struct Config {
   pub levels: Option<usize>,
   pub only_show_directories: bool,
   pub print_hidden: bool,
+  pub charset: Charset,
 }
 
 impl Config {
@@ -51,6 +67,7 @@ impl Config {
       levels: None,
       only_show_directories: false,
       print_hidden: false,
+      charset: Charset::Fancy,
     }
   }
 }

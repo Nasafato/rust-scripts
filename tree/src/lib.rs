@@ -35,12 +35,16 @@ pub fn run(args: Args) -> Result<Output, io::Error> {
             Ok(paths) => paths,
             Err(err) => return Err(err),
         };
+        let config = &args.config;
         paths.sort_by_key(|dir| dir.path());
-        for (i, entry) in paths.into_iter().enumerate() {
+        for (i, entry) in paths
+            .into_iter()
+            .filter(|e| {
+                config.print_hidden || (!config.print_hidden && !utils::is_hidden(&e.path()))
+            })
+            .enumerate()
+        {
             let path = entry.path();
-            if !args.config.print_hidden && utils::is_hidden(&path) {
-                continue;
-            }
             stack.push(Line::new(
                 line.depth + 1,
                 i == 0,
