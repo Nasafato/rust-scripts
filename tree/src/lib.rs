@@ -8,25 +8,39 @@ use crate::output::Output;
 pub struct Config {
     levels: Option<usize>,
     paths: Vec<PathBuf>,
+    only_show_directories: bool,
+    print_hidden: bool,
+}
+
+impl Config {
+    pub fn new() -> Config {
+        Config {
+            levels: None,
+            paths: Vec::new(),
+            only_show_directories: false,
+            print_hidden: false,
+        }
+    }
 }
 
 pub fn parse_config(args: &[String]) -> Result<Config, &'static str> {
-    let mut paths = Vec::new();
-    let mut levels: Option<usize> = None;
+    let mut config = Config::new();
     let mut is_parsing_level = false;
     for arg in args {
         if arg == "-L" {
             is_parsing_level = true;
         } else if is_parsing_level {
-            levels = Some(parse_int(&arg)?);
+            config.levels = Some(parse_int(&arg)?);
+            is_parsing_level = false;
+        } else if arg == "-d" {
+            config.only_show_directories = true;
         } else {
-            paths.push(PathBuf::from(arg));
+            config.paths.push(PathBuf::from(arg));
         }
     }
-    if paths.len() == 0 {
-        paths.push(PathBuf::from("."));
+    if config.paths.len() == 0 {
+        config.paths.push(PathBuf::from("."));
     }
-    let config = Config { levels, paths };
     Ok(config)
 }
 
@@ -59,10 +73,13 @@ pub fn run(config: Config) -> Result<Output, io::Error> {
             Some(line) => line,
             None => return Err(io::Error::new(io::ErrorKind::Other, "Pop failed")),
         };
-        match line.display() {
-            Ok(()) => (),
-            Err(err) => return Err(err),
-        };
+        if config.only_show_directories {
+            if line.path.is_dir() {
+                line.display();
+            }
+        } else {
+            line.display();
+        }
         if !line.path.is_dir() {
             output.increment_files();
             continue;
@@ -116,18 +133,14 @@ impl Line {
     }
 
     /// Displays the tree using the Ascii charset
-    pub fn display(&self) -> Result<(), io::Error> {
+    pub fn display(&self) {
         let indent = create_indentation(&self, 4);
         let filename = match self.path.file_name() {
             Some(filename) => filename,
             None => self.path.as_os_str(),
         };
-        let filename = match filename.to_str() {
-            Some(filename) => filename,
-            None => "non-utf-8",
-        };
+        let filename = filename.to_string_lossy();
         println!("{}{}", indent, filename);
-        Ok(())
     }
 
     /// Lets you specify a charset to display the tree with
