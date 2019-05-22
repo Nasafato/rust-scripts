@@ -1,7 +1,5 @@
 use std::env;
-use std::fs;
-use std::io;
-use std::path::PathBuf;
+use tree;
 
 fn main() {
     let current_dir = env::current_dir().unwrap();
@@ -11,13 +9,14 @@ fn main() {
     // io::stdin()
     //     .read_line(&mut raw_path_string)
     //     .expect("Failed to read line");
-    let raw_path_string = "test";
+    // let raw_path_string = "test";
+    let args: Vec<String> = env::args().skip(1).collect();
+    let config = match tree::parse_config(&args) {
+        Ok(config) => config,
+        Err(string) => panic!(string),
+    };
 
-    let mut path = PathBuf::new();
-    path.push(current_dir);
-    path.push(raw_path_string.trim());
-
-    match tree(path) {
+    match tree::run(config) {
         Ok(()) => println!("Ok"),
         Err(err) => println!("Err: {}", err),
     }
@@ -58,119 +57,6 @@ For any given line, we need:
 
 [] Better error-handlng when the tree encounters non-Unicode filenames
 [] List files in current directory when there are no arguments
-[] Take in a list of directory arguments and prints out the tree one-by-one
-[] Return total number of files and/or directories 
+[x] Take in a list of directory arguments and prints out the tree one-by-one
+[] Return total number of files and/or directories
 */
-
-enum Charset {
-    Ascii,
-    Fancy,
-}
-
-#[derive(Clone, Debug)]
-struct Line {
-    depth: usize,
-    is_last_child: bool,
-    ancestors_are_last_children: bool,
-    path: PathBuf,
-}
-
-impl Line {
-    pub fn new(
-        depth: usize,
-        is_last_child: bool,
-        ancestors_are_last_children: bool,
-        path: PathBuf,
-    ) -> Line {
-        Line {
-            depth: depth,
-            is_last_child: is_last_child,
-            ancestors_are_last_children: ancestors_are_last_children,
-            path: path,
-        }
-    }
-
-    /// Displays the tree using the Ascii charset
-    pub fn display(&self) {
-        let indent = create_indentation(&self, 4);
-        println!(
-            "{}{}",
-            indent,
-            &self.path.file_name().unwrap().to_str().unwrap()
-        );
-    }
-
-    /// Lets you specify a charset to display the tree with
-    pub fn display_with_charset(&self, charset: Charset) {
-        let indent = create_indentation(&self, 4);
-        println!("{}{:?}", indent, &self.path.file_name().unwrap());
-    }
-}
-
-fn create_indentation(line: &Line, amount_per_step: usize) -> String {
-    let mut indent = "".to_string();
-    if line.depth == 0 {
-        return indent;
-    }
-    indent.push_str(
-        create_ancestor_indent(
-            line.depth - 1,
-            line.ancestors_are_last_children,
-            amount_per_step,
-        )
-        .as_ref(),
-    );
-    if line.is_last_child {
-        indent.push_str("\\");
-    } else {
-        indent.push_str("+")
-    }
-    while indent.len() < line.depth * amount_per_step {
-        indent.push_str("-");
-    }
-    indent
-}
-
-fn create_ancestor_indent(
-    steps: usize,
-    ancestors_are_last_children: bool,
-    amount_per_step: usize,
-) -> String {
-    let mut ancestor_indent = "".to_string();
-    while ancestor_indent.len() < steps * amount_per_step {
-        let mut step = "".to_string();
-        if ancestors_are_last_children {
-            step.push_str(" ");
-        } else {
-            step.push_str("|");
-        }
-        while step.len() < amount_per_step {
-            step.push_str(" ");
-        }
-        ancestor_indent.push_str(&step)
-    }
-    ancestor_indent
-}
-
-fn tree(path: PathBuf) -> Result<(), io::Error> {
-    let mut stack = Vec::new();
-    stack.push(Line::new(0, true, true, path));
-    while stack.len() > 0 {
-        let line = stack.pop().unwrap();
-        line.display();
-        if !line.path.is_dir() {
-            continue;
-        }
-        let mut paths: Vec<_> = fs::read_dir(&line.path)?.map(|r| r.unwrap()).collect();
-        paths.sort_by_key(|dir| dir.path());
-        for (i, entry) in paths.into_iter().enumerate() {
-            stack.push(Line::new(
-                line.depth + 1,
-                i == 0,
-                line.ancestors_are_last_children && line.is_last_child,
-                entry.path(),
-            ));
-        }
-    }
-    Ok(())
-}
