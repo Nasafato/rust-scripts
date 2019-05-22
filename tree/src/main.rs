@@ -1,9 +1,9 @@
 use std::env;
-use tree;
+use tree::Args;
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
-    let config = match tree::parse_config(&args) {
+    let config = match Args::from_args(&args) {
         Ok(config) => config,
         Err(string) => panic!(string),
     };
