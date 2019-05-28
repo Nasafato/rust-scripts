@@ -15,17 +15,14 @@ pub fn run(args: Args) -> Result<Output, io::Error> {
     for path in args.paths {
         stack.push(Line::new(0, true, true, path));
     }
-    while stack.len() > 0 {
-        let line = match stack.pop() {
-            Some(line) => line,
-            None => return Err(io::Error::new(io::ErrorKind::Other, "Pop failed")),
-        };
-        match line.path.is_dir() {
-            true => output.increment_directories(),
-            false => output.increment_files(),
+    while let Some(line) = stack.pop() {
+        if line.path.is_dir() {
+            output.increment_directories();
+        } else {
+            output.increment_files();
         }
         display::display(&line, &args.config);
-        if should_skip(&line, &args.config) {
+        if !line.path.is_dir() {
             continue;
         }
 
@@ -35,18 +32,27 @@ pub fn run(args: Args) -> Result<Output, io::Error> {
             Ok(paths) => paths,
             Err(err) => return Err(err),
         };
+        let new_depth = line.depth + 1;
         let config = &args.config;
         paths.sort_by_key(|dir| dir.path());
         for (i, entry) in paths
             .into_iter()
             .filter(|e| {
-                config.print_hidden || (!config.print_hidden && !utils::is_hidden(&e.path()))
+                if let Some(max_depth) = config.levels {
+                    if new_depth > max_depth {
+                        return false;
+                    }
+                }
+                if config.print_hidden {
+                    return true;
+                }
+                (!config.print_hidden && !utils::is_hidden(&e.path()))
             })
             .enumerate()
         {
             let path = entry.path();
             stack.push(Line::new(
-                line.depth + 1,
+                new_depth,
                 i == 0,
                 line.ancestors_are_last_children && line.is_last_child,
                 path,
@@ -54,17 +60,4 @@ pub fn run(args: Args) -> Result<Output, io::Error> {
         }
     }
     Ok(output)
-}
-
-fn should_skip(line: &Line, config: &Config) -> bool {
-    if let Some(levels) = config.levels {
-        if levels == line.depth {
-            return true;
-        }
-    }
-    if !line.path.is_dir() {
-        return true;
-    }
-
-    false
 }
