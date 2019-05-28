@@ -5,7 +5,6 @@ mod display;
 mod output;
 mod utils;
 pub use config::Args;
-use config::Config;
 use display::Line;
 use output::Output;
 
@@ -45,6 +44,9 @@ pub fn run(args: Args) -> Result<Output, io::Error> {
                 }
                 if config.print_hidden {
                     return true;
+                }
+                if config.only_show_directories && !e.path().is_dir() {
+                    return false;
                 }
                 (!config.print_hidden && !utils::is_hidden(&e.path()))
             })
