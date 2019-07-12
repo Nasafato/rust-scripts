@@ -1,4 +1,5 @@
 use crate::display::Charset;
+use regex::Regex;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -12,6 +13,7 @@ impl Args {
     let mut args = Args::new();
     let mut is_parsing_level = false;
     let mut is_parsing_charset = false;
+    let mut is_parsing_pattern = false;
     for arg in arguments {
       if arg == "-L" {
         is_parsing_level = true;
@@ -27,6 +29,11 @@ impl Args {
       } else if is_parsing_charset {
         args.config.charset = parse_charset(arg);
         is_parsing_charset = false;
+      } else if arg == "-P" {
+        is_parsing_pattern = true;
+      } else if is_parsing_pattern {
+        args.config.pattern = create_pattern(arg);
+        is_parsing_pattern = false;
       } else {
         args.paths.push(PathBuf::from(arg));
       }
@@ -59,6 +66,7 @@ pub struct Config {
   pub only_show_directories: bool,
   pub print_hidden: bool,
   pub charset: Charset,
+  pub pattern: Option<Regex>,
 }
 
 impl Config {
@@ -68,6 +76,7 @@ impl Config {
       only_show_directories: false,
       print_hidden: false,
       charset: Charset::Fancy,
+      pattern: None,
     }
   }
 }
@@ -88,4 +97,9 @@ fn parse_int(string: &str) -> Result<usize, &'static str> {
   }
   let sum = values_to_sum.iter().sum();
   Ok(sum)
+}
+
+fn create_pattern(string: &str) -> Option<Regex> {
+  let re = Regex::new(string).unwrap();
+  Some(re)
 }

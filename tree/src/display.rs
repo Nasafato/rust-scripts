@@ -38,15 +38,8 @@ pub fn display(line: &Line, config: &Config) {
     Some(filename) => filename.to_string_lossy(),
     None => line.path.to_string_lossy(),
   };
-
-  let should_print = match config.only_show_directories {
-    true => line.path.is_dir(),
-    false => true,
-  };
   let indent = create_indentation(line, 4, config.charset);
-  if should_print {
-    println!("{}{}", indent, filename);
-  }
+  println!("{}{}", indent, filename);
 }
 
 fn create_indentation(line: &Line, amount_per_step: usize, charset: Charset) -> String {
